@@ -23,7 +23,9 @@
 //      impl lex cache
 //      Write tests
 //      implement keywords
-
+//      struct token -> class token w access methods
+//      improve lexer api, cumbersome lex() then get() patterns
+//      add comments
 namespace ammar {
   
   // MAYBE CHANGE ACCESS OF TOKEN
@@ -110,6 +112,7 @@ class Lexer {
         Cache(&Operators, &Identifiers, &Literals, &Keywords) { 
           assert(Source.is_open() && "File could not be opened");
         }
+
 
   Lexer(const Lexer&) = delete;      
 

@@ -16,7 +16,6 @@ January 2020 */
 
 namespace ammar {
 
-
 std::string XMLParser::ElementNode::ToString() {
   auto element = "Name: "+ name  + " Text: " + text + " Attributes: ";
   std::for_each(attributes.begin(),
