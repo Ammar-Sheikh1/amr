@@ -19,13 +19,11 @@
 #include <string>
 #include <cstddef>
 
-//Todo: Wrap up internal structs 
-//      impl lex cache
+//Todo: Wrap up internal structs- Token access, LexCache
+//      finish lex function
 //      Write tests
-//      implement keywords
-//      struct token -> class token w access methods
-//      improve lexer api, cumbersome lex() then get() patterns
-//      add comments
+//      Keywords should be std::string right ?
+
 namespace ammar {
   
   // MAYBE CHANGE ACCESS OF TOKEN
@@ -113,11 +111,10 @@ class Lexer {
           assert(Source.is_open() && "File could not be opened");
         }
 
-
   Lexer(const Lexer&) = delete;      
 
   // gathers next token into CurrentToken
-  void lex();
+  Lexer& lex();
 
   // Returns the current token,
   Token getCurrentToken() noexcept { 

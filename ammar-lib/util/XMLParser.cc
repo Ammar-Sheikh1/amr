@@ -3,51 +3,66 @@ Created by Ammar Sheikh
 January 2020 */
 
 
-/* ASSUME XML 1.0  
+/* ASSUME XML 1.0  TODO: Encoding ?? 
 */
 
 #include "XMLParser.h"
 
 #include <algorithm>
 #include <stack>
+#include <memory>
+#include <queue>
 
-//DEBUGGING
 #include <iostream>
+
+//TODO: see .h
 
 namespace ammar {
 
 std::string XMLParser::ElementNode::ToString() {
   auto element = "Name: "+ name  + " Text: " + text + " Attributes: ";
-  std::for_each(attributes.begin(),
-                attributes.end(), [&](attributePair p) {
+  std::for_each(attributeMap.begin(),
+                attributeMap.end(), [&](std::pair<const std::string,std::string>& p) {
                 element += "{"+ p.first + ":" + p.second + "} "; });
   return element;
 }
 
 void XMLParser::build() {
-  std::stack<ElementNode*> elements;
+  std::stack<std::shared_ptr<ElementNode>> elements;
 
   while (!lexer.lexedAllTokens()) {
     lexer.lex();
-
     if (lexer.getCurrentToken().data == "<") {
       processNewNodeData(elements);
     }
+
     if (lexer.getCurrentToken().type == Token::TokenType::IDENTIFIER) {
-      processCurrentNodeText(elements);
+      // add text to newest node, may be multiple tokens
+      //processCurrentNodeText(elements);
+      elements.top()->text += lexer.getCurrentToken().data;
     }
     if (lexer.getCurrentToken().data == "</") {
-      closeNodeState(elements);
+      //Close newest node. Move to end of closing tag ">"
+      elements.pop();
+      while (lexer.lex().getCurrentToken().data != ">") {}
+  
     }
   }
 }
 
 
-void XMLParser::processNewNodeData(std::stack<ElementNode*>& elements) {
+// Call when current Token is an opening tag. Creates a new element node and  
+// initializes it with its name and potential attributes. Note: Moves Lexer 
+// state to end of opening tag. ">"
+void XMLParser::processNewNodeData(std::stack<std::shared_ptr<ElementNode>>& elements) {
+    // Move to Token after opening tag
     lexer.lex();
     if (lexer.getCurrentToken().data == ">")
       return;
-    ElementNode* addNode = new ElementNode(lexer.getCurrentToken().data);
+
+    //Create new node and link to tree
+    auto addNode = std::make_shared<ElementNode>(lexer.getCurrentToken().data);
+
     if (!root) {
       root = addNode;
       elements.push(root);
@@ -58,60 +73,113 @@ void XMLParser::processNewNodeData(std::stack<ElementNode*>& elements) {
       elements.push(addNode);
     }
 
-    std::vector<std::pair<std::string,std::string>> attributeList;
-
+    // Add potential attributes to attributeMap
+    
     lexer.lex();
     while (lexer.getCurrentToken().data != ">") {
-      
-      std::pair<std::string,std::string> pair;
+      //get attribute Key
+      //std::pair<std::string,std::string> pair;
+      std::string Key;
+      // Assign token before "=" as the attribute Key
       while (lexer.getCurrentToken().data != "=" ) {
-        auto AttributeName = lexer.getCurrentToken().data;
+        Key = lexer.getCurrentToken().data;
         lexer.lex();
-        pair.first = AttributeName;
       }
+
+      // past "="
       lexer.lex();
+
+      //get Value
       if (lexer.getCurrentToken().data == "\"") {
         lexer.lex();
-        auto attributeVal = lexer.getCurrentToken().data;
+        auto Value = lexer.getCurrentToken().data;
         lexer.lex();
+
+        // Append every token between quotes. Accounts for split tokens
+        // via spaces
         while (lexer.getCurrentToken().data != "\"") {
-          attributeVal += lexer.getCurrentToken().data;
+          Value += lexer.getCurrentToken().data;
           lexer.lex();
         }
-        pair.second = attributeVal;
-        attributeList.push_back(std::move(pair));
+
+        // Add to node
+        addNode->attributeMap[Key] = Value;
         lexer.lex();
       }
+      // Advance until end of starting tag is reached
     }
-    addNode->attributes = std::move(attributeList);
 }
 
 
-void XMLParser::processCurrentNodeText(std::stack<ElementNode*>& elements) {
-  elements.top()->text += lexer.getCurrentToken().data;
-}
-
-
-void XMLParser::closeNodeState(std::stack<ElementNode*>& elements) {
-  elements.pop();
-  while (lexer.getCurrentToken().data != ">")
-    lexer.lex();
-}
-
-
-//CURRENTLY USED FOR TESTING 
+// DFS display of tree
 void XMLParser::displayXMLTree() {
-  if(!root)
+  if (!root)
     return;
-  std::stack<ElementNode*> s;
+  std::stack<std::shared_ptr<ElementNode>> s;
   s.push(root);
   while (!s.empty()) {
-    ElementNode* node = s.top();
+   auto node = s.top();
     s.pop();
     for (const auto child : node->children)
       s.push(child);
+
     std::cout << node->ToString() << "\n";
   }
+}
+
+
+//Given a path to an element, generate a list of all Elements TODO: <--- FIX
+// Ex "root/child1/child2/child3" -> {child3, child3, child3}
+std::vector<std::shared_ptr<XMLParser::ElementNode>> XMLParser::iterate (const std::string& path) {
+  return iterate(path, root);
+}
+
+
+std::vector<std::shared_ptr<XMLParser::ElementNode>> 
+XMLParser::iterate (const std::string& path, const std::shared_ptr<XMLParser::ElementNode>& rootElement) {
+  assert(path.length() > 0);
+  assert(rootElement != nullptr);
+
+  // Check Root Node
+  std::size_t start = 0;
+  std::size_t end = path.find('/');
+  if (path.compare(start, end-start, rootElement->name)) {  // If not equivalent return
+    return {};
+  }
+
+  start = end + 1;
+  end = path.find('/', start);
+
+  std::queue<std::shared_ptr<ElementNode>> elementQ;
+  elementQ.push(rootElement);
+
+  while (!elementQ.empty()) {
+    auto element = elementQ.front();
+    elementQ.pop();
+    
+    //For all children, add if it matches current path 
+    for (const auto& children : element->children) {
+      if (!path.compare(start, end-start, children->name)){
+        elementQ.push(children);
+      }
+    }
+
+    // Go to next path token, only when we have finished
+    // adding all possible elements of that token
+    // which occurs, when the next elem.name == currentToken
+    if (!elementQ.empty() && !path.compare(start, end-start, elementQ.front()->name)) {
+      if (end == std::string::npos)
+        break;
+      start = end + 1;
+      end = path.find('/', start);
+    }
+  }
+  std::vector<std::shared_ptr<ElementNode>> elementList;
+  while (!elementQ.empty()) {
+    elementList.push_back(elementQ.front());
+    elementQ.pop();
+  }
+  return elementList;
 }
 
 } // namespace ammar

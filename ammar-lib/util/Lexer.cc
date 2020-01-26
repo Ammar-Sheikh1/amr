@@ -8,7 +8,6 @@
   This class defines the Lexer implementation. 
 
   */
-
 #include "Lexer.h"
 #include <string>
 #include <cstddef>
@@ -22,13 +21,13 @@ void Lexer::fillBuffer() {
   endPtr = currentPtr + Buffer.find('\0');
 }  
 
-void Lexer::lex() {
-  if (Source.eof() && bufferIsEmpty()) {
+Lexer& Lexer::lex() {
+  if(Source.eof() && bufferIsEmpty()) {
     CurrentToken.data = "";
-    return;
+    return *this;
   }
 
-  if (bufferIsEmpty())
+  if(bufferIsEmpty())
     fillBuffer();
 
   while (!bufferIsEmpty()) {
@@ -54,6 +53,7 @@ void Lexer::lex() {
     // }
     ++currentPtr;
   }
+  return *this;
 }
 
 std::size_t Lexer::captureToken(Lexer::BufferPtr startPtr, 
